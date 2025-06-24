@@ -1,36 +1,35 @@
-DECLARE @Year INT = 2025;
-DECLARE @Month INT = 6; -- June
+declare @Year int=2025
+declare @Month int=6
 
--- Generate a list of dates for the given month
-WITH Dates (CalendarDate) AS (
-    SELECT CAST(DATEFROMPARTS(@Year, @Month, 1) AS DATE)
-    UNION ALL
-    SELECT DATEADD(DAY, 1, CalendarDate)
-    FROM Dates
-    WHERE MONTH(DATEADD(DAY, 1, CalendarDate)) = @Month
+declare @date date='20250606'
+
+declare @startdate date=datefromparts(year(@date),month(@date),1)  -- get the first day of month
+declare @enddate   date=eomonth(@startdate)  -- get the last day of month
+
+;with dates as(
+  select @startdate as calendardate
+  union all
+  select dateadd(day,1,calendardate)
+  from dates
+  where calendardate<@enddate
 ),
--- Add week number and day name
-LabeledDates AS (
-    SELECT 
-        CalendarDate,
-        DATENAME(WEEKDAY, CalendarDate) AS WeekdayName,
-        DATEDIFF(WEEK, DATEFROMPARTS(@Year, @Month, 1), CalendarDate) + 1 AS WeekOfMonth
-),
--- Pivot the days into week rows
-Pivoted AS (
-    SELECT 
-        WeekOfMonth,
-        [Sunday]   = MAX(CASE WHEN DATENAME(WEEKDAY, CalendarDate) = 'Sunday' THEN CalendarDate END),
-        [Monday]   = MAX(CASE WHEN DATENAME(WEEKDAY, CalendarDate) = 'Monday' THEN CalendarDate END),
-        [Tuesday]  = MAX(CASE WHEN DATENAME(WEEKDAY, CalendarDate) = 'Tuesday' THEN CalendarDate END),
-        [Wednesday]= MAX(CASE WHEN DATENAME(WEEKDAY, CalendarDate) = 'Wednesday' THEN CalendarDate END),
-        [Thursday] = MAX(CASE WHEN DATENAME(WEEKDAY, CalendarDate) = 'Thursday' THEN CalendarDate END),
-        [Friday]   = MAX(CASE WHEN DATENAME(WEEKDAY, CalendarDate) = 'Friday' THEN CalendarDate END),
-        [Saturday] = MAX(CASE WHEN DATENAME(WEEKDAY, CalendarDate) = 'Saturday' THEN CalendarDate END)
-    FROM LabeledDates
-    GROUP BY WeekOfMonth
+weekgroups as (
+  select calendardate,                 
+    datepart(week, dateadd(day,-datepart(weekday, calendardate)+1,calendardate)) --2025-06-05  , -- 2025-06-01
+    + datediff(month, 0, calendardate) as weekgroup,
+    datename(weekday,calendardate) as dayname,
+    datepart(weekday, calendardate) as dayofweek
+  from dates
 )
-
-SELECT * FROM Pivoted
-ORDER BY WeekOfMonth
-OPTION (MAXRECURSION 1000);
+select  
+    max(case when datepart(weekday,calendardate)=1 then calendardate else null end) as Sunday,
+    max(case when datepart(weekday,calendardate)=2 then calendardate else null end) as Monday,
+    max(case when datepart(weekday,calendardate)=3 then calendardate else null end) as Tuesday,
+    max(case when datepart(weekday,calendardate)=4 then calendardate else null end) as Wednesday,
+    max(case when datepart(weekday,calendardate)=5 then calendardate else null end) as Thursday,
+    max(case when datepart(weekday,calendardate)=6 then calendardate else null end) as Friday,
+    max(case when datepart(weekday,calendardate)=7 then calendardate else null end) as Saturday
+from weekgroups
+group by weekgroup
+order by min(calendardate)
+option (maxrecursion 1000);
